@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="../../webcomponentsjs/webcomponents.js"></script>
+    <script src="../../web-component-tester/browser.js"></script>
+    <script src="../fsm.js"></script>
+</head>
+<body>
+    
+<script>
+describe('FsmTransition', function() {
+    describe('_test', function() {
+        it('should return true without guard function', function() {
+            var transition = new FsmTransition('eventType', 'targetState');
+            assert.isTrue(transition._test({}));
+        });
+        it('should return true if the guard function returns a truthy value', function() {
+            var transition = new FsmTransition('eventType', 'targetState', {
+                guard: function(context, type, activeState){
+                    return 1;
+                }
+            });
+            assert.isTrue(transition._test({}));
+        });
+        it('should return false if the guard function returns falsy value', function() {
+            var transition = new FsmTransition('eventType', 'targetState', {
+                guard: function(context, type, activeState){
+                    // return undefined
+                }
+            });
+            assert.isFalse(transition._test({}));
+        });
+    });
+});
+
+describe('FsmState', function() {
+    describe('_handleStateEvent', function() {
+        it('should stop immediately if a transition has stopImmediatePropagation set', function() {
+            var guard1Executed = false,
+                guard2Executed = false;
+            var state = new FsmState('foo', {
+                transitions: [
+                    new FsmTransition('open', 'opened', {
+                        guard: function(context, type, activeState){
+                            guard1Executed = true;
+                            return false;
+                        },
+                        stopImmediatePropagation: true
+                    }),
+                    new FsmTransition('open', 'semi-opened', {
+                        guard: function(context, type, activeState){
+                            guard2Executed = true;
+                        }
+                    })
+                ]
+            });
+            state._handleStateEvent(new FsmEvent('open', null, {}));
+            assert.isTrue(guard1Executed, 'First guard function not executed');
+            assert.isFalse(guard2Executed, 'Second guard function executed');
+        });
+    });
+    describe('_handleStateEvent', function() {
+        it('should overwrite the target state if stopImmediatePropagation is not set', function() {
+            var state = new FsmState('foo', {
+                transitions: [
+                    new FsmTransition('open', 'opened'),
+                    new FsmTransition('open', 'semi-opened')
+                ]
+            });
+            var event = new FsmEvent('open', null, {});
+            state._handleStateEvent(event);
+            assert.equal(event.targetState, 'semi-opened');
+        });
+    });
+});
+
+describe('FsmMachine', function() {
+    describe('_resolveStateName with flat states', function() {
+        it('should return an array with a single entry that is the foo state', function() {
+            var stateMachine = new FsmMachine([
+                new FsmState('foo'), new FsmState('fail')
+            ]);
+            var states = stateMachine._resolveStateName('foo');
+            assert.isArray(states);
+            assert.equal(states.length, 1);
+            assert.equal(states[0]._name, 'foo');
+        });
+    });
+    describe('_resolveStateName with nested states', function() {
+        it('should return an array with two entries equal to [foo, bar] states', function() {
+            var stateMachine = new FsmMachine([
+                new FsmState('foo', {
+                    states: [
+                        new FsmState('bar', {
+                            states: [new FsmState('fail')]
+                        })
+                    ]
+                }),
+                new FsmState('fail')
+            ]);
+            var states = stateMachine._resolveStateName('foo.bar');
+            assert.isArray(states);
+            assert.equal(states.length, 2);
+            assert.equal(states[0]._name, 'foo');
+            assert.equal(states[1]._name, 'bar');
+        });
+    });
+    describe('_collapseStateName', function() {
+        it('should join all state names with a dot', function() {
+            var states = [null, null, null];
+            states[2] = new FsmState('xyz');
+            states[1] = new FsmState('bar', {states: [states[2]]});
+            states[0] = new FsmState('foo', {states: [states[1]]});
+
+            var stateMachine = new FsmMachine();
+            assert.equal(stateMachine._collapseStateName(states), 'foo.bar.xyz');
+        });
+    });
+    describe('init', function() {
+        it('should initialize the current state and execute the enter function and init callback', function() {
+            var onEnterExecuted = false,
+                initCallbackExecuted = false;
+            var stateMachine = new FsmMachine([
+                new FsmState('foo', {
+                    onEnter: function(context, type, activeState){
+                        onEnterExecuted = true;
+                    }
+                })
+            ]);
+            stateMachine.init('foo', function(){
+                initCallbackExecuted = true;
+            });
+            assert.isTrue(onEnterExecuted, 'Enter function not executed');
+            assert.isTrue(initCallbackExecuted, 'Init callback not executed');
+            assert.equal(stateMachine.activeState, 'foo');
+        });
+    });
+    describe('init', function() {
+        it('should initialize a nested state', function() {
+            var onEnterExecuted = [];
+            var stateMachine = new FsmMachine([
+                new FsmState('foo', {
+                    onEnter: function(context, type, activeState){
+                        onEnterExecuted.push('foo');
+                    },
+                    states: [
+                        new FsmState('bar', {
+                            states: [
+                                new FsmState('xyz', {
+                                    onEnter: function(context, type, activeState){
+                                        onEnterExecuted.push('xyz');
+                                    }
+                                })
+                            ]
+                        })
+                    ]
+                })
+            ]);
+            stateMachine.init('foo.bar.xyz');
+            assert.deepEqual(onEnterExecuted, ['foo', 'xyz']);
+            assert.equal(stateMachine.activeState, 'foo.bar.xyz');
+        });
+    });
+    describe('fireStateEvent', function() {
+        it('should transition from closed to opened state after executing the guard function', function() {
+            var guardTested = false;
+            var stateMachine = new FsmMachine([
+                new FsmState('closed', {
+                    transitions: [
+                        new FsmTransition('open', 'opened', {
+                            guard: function(context, type, activeState){
+                                guardTested = true;
+                                return true;
+                            }
+                        })
+                    ]
+                }),
+                new FsmState('opened')
+            ]);
+            stateMachine.init('closed');
+            stateMachine.fireStateEvent('open');
+            assert.isTrue(guardTested, 'Guard function not executed');
+            assert.equal(stateMachine.activeState, 'opened');
+        });
+    });
+});
+</script>
+</body>
+</html>

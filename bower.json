@@ -1,0 +1,19 @@
+{
+    "name": "js-state-machinery",
+    "description": "JavaScript State Machine",
+    "version": "0.1.0",
+    "main": ["fsm.js", "fsm.min.js", "fsm.html"],
+    "ignore": ["test", "README.md", ".gitignore"],
+    "keywords": ["state machine", "fsm"],
+    "url": "http://github.com/oliverdm/js-state-machinery",
+    "repository": {
+        "type": "git",
+        "url": "git://github.com/oliverdm/js-state-machinery.git"
+    },
+    "dependencies": {
+    },
+    "devDependencies": {
+        "web-component-tester": "Polymer/web-component-tester#^2.0.0"
+    },
+    "private": false
+}
