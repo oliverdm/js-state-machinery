@@ -15,17 +15,17 @@ JavaScript state machine with nested states.
 var fsm = new FsmMachine([
     new FsmState('opened', {
         transitions: [
-            new FsmTransition('close', 'closed'),
+            new FsmTransition('close', 'closed')
         ],
         onExit: function(context, type, targetState, done){
             // when exiting opened state
             // the fourth argument is optional and can be declared
             // for asynchronous operation
             setTimeout(done, 400);
-        }
+        },
         onEnter: function(context, type, activeState){
             // when entering opened state
-        },
+        }
     }),
     new FsmState('closed', {
         transitions: [
@@ -41,7 +41,7 @@ var fsm = new FsmMachine([
                             return context.key === context.secret;
                         },
                         stopPropagation: true
-                    });
+                    })
                 ]
             })
         ]
@@ -56,3 +56,15 @@ fsm.on('change', function(detail){
 fsm.init('closed.locked');
 fsm.fireStateEvent('open', {key: 'secr3t'});
 ```
+
+### Order of execution
+
+The order in which callback functions of nested states are invoked:
+ 
+| Callback         | Order              |
+| ---------------- | -------------------|
+| State event      | leaf to root state |
+| onEnter          | root to leaf state |
+| onExit           | leaf to root state |
+
+Transitions of state objects are tested in the order in which they are defined.
