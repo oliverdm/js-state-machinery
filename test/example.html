@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="../../webcomponentsjs/webcomponents.js"></script>
+    <script src="../../web-component-tester/browser.js"></script>
+    <script src="../fsm.js"></script>
+</head>
+<body>
+    
+<script>
+describe('example code', function() {
+    var fsm = new FsmMachine([
+        new FsmState('opened', {
+            transitions: [
+                new FsmTransition('close', 'closed')
+            ],
+            onExit: function(context, type, targetState, done){
+                // when exiting opened state
+                // the fourth argument is optional and can be declared
+                // for asynchronous operation
+                setTimeout(done, 400);
+            },
+            onEnter: function(context, type, activeState){
+                // when entering opened state
+            }
+        }),
+        new FsmState('closed', {
+            transitions: [
+                new FsmTransition('open', 'opened'),
+                new FsmTransition('lock', 'closed.locked')
+            ],
+            // child states
+            states: [
+                new FsmState('locked', {
+                    transitions: [
+                        new FsmTransition('open', 'opened', {
+                            guard: function(context, type, activeState) {
+                                return context.key === context.secret;
+                            },
+                            stopPropagation: true
+                        })
+                    ]
+                })
+            ]
+        })
+    ], {
+        secret: 'secr3t'
+    });
+    
+    var changes = [];
+    fsm.on('change', function(detail){
+        changes.push(detail);
+    });
+    
+    it('should initialize to closed.locked', function() {
+        fsm.init('closed.locked');
+        assert.equal(fsm.activeState, 'closed.locked');
+    });
+    it('should not transition to opened state because of incorrect key', function() {
+        fsm.fireStateEvent('open', {key: 'incorrect'});
+        assert.equal(fsm.activeState, 'closed.locked');
+    });
+    it('should transition to opened state with the correct key', function() {
+        fsm.fireStateEvent('open', {key: 'secr3t'});
+        assert.equal(fsm.activeState, 'opened');
+    });
+    it('should fire a change event when transitioning to opened state', function() {
+        console.log('changes=', changes);
+        assert.ok(changes.length);
+        assert.equal(changes[changes.length - 1].oldState, 'closed.locked');
+        assert.equal(changes[changes.length - 1].newState, 'opened');
+    });
+});
+
+</script>
+</body>
+</html>

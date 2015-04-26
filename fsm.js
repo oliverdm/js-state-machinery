@@ -232,16 +232,15 @@ StateMachine.prototype._mergeContext = function(context){
 /**
  * Changes the <code>_activeState</code> property and fires the
  * <code>change</code> event.
- * @param {array} state the new state as an array that includes all parent state
- * objects
+ * @param {array} newState the new state as an array that includes all parent
+ * state objects
+ * @param {array} oldState the old state
  */
-StateMachine.prototype._changeActiveState = function(state){
-    var oldStateName = this._collapseStateName(this._activeState);
-    var newStateName = this._collapseStateName(state);
-    this._activeState = state;
+StateMachine.prototype._changeActiveState = function(newState, oldState){
+    this._activeState = newState;
     this._invokeListeners('change', {
-        oldState: oldStateName,
-        newState: newStateName
+        oldState: this._collapseStateName(oldState),
+        newState: this._collapseStateName(newState)
     });
 };
 /**
@@ -329,9 +328,9 @@ StateMachine.prototype['fireStateEvent'] = function(type, context){
     );
     // invoke event handlers of current states
     var activeState = this._activeState.slice(),
-        activeStateName = this._collapseStateName(activeState);
-    activeState.reverse();
-    activeState.some(function(state){
+        activeStateReverse = activeState.slice();
+    activeStateReverse.reverse();
+    activeStateReverse.some(function(state){
         if (event.cancelled) {
             return true;
         }
@@ -346,11 +345,13 @@ StateMachine.prototype['fireStateEvent'] = function(type, context){
         var _this = this;
         function transition() {
             // exit old state
-            _this._log('EXIT STATE:', activeStateName);
-            _this._invokeStateHook('_exit', activeState, event, function(){
+            _this._log('EXIT STATE:', _this._collapseStateName(activeState));
+            _this._invokeStateHook('_exit', activeStateReverse, event, function(){
                 // enter new state and change current state
                 _this._log('ENTER STATE:', _this._collapseStateName(targetState));
-                _this._invokeStateHook('_enter', targetState, event, _this._changeActiveState.bind(_this));
+                _this._invokeStateHook('_enter', targetState, event, function(){
+                    _this._changeActiveState(targetState, activeState);
+                });
             });
         }
         // void the current state to prevent simultaneous events interfering
